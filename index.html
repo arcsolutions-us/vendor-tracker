@@ -153,6 +153,19 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
 .edit-group label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;font-weight:500;}
 .edit-group input,.edit-group select{background:#f8fafc;border:1px solid #e2e6ea;border-radius:6px;padding:8px 10px;font-size:13px;color:#1a1d23;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;width:100%;}
 .edit-group input:focus,.edit-group select:focus{border-color:#2563eb;background:#fff;}
+
+.login-screen{display:none;position:fixed;inset:0;background:#f0f2f5;z-index:9999;flex-direction:column;align-items:center;justify-content:center;}
+.login-screen.show{display:flex;}
+.login-box{background:#fff;border-radius:12px;padding:40px;width:360px;box-shadow:0 4px 24px rgba(0,0,0,0.08);}
+.login-box h1{font-size:20px;font-weight:700;color:#1a1d23;margin-bottom:28px;text-align:center;}
+.login-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.login-field label{font-size:12px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:.07em;}
+.login-field input{background:#f8fafc;border:1px solid #e2e6ea;border-radius:8px;padding:10px 14px;font-size:14px;color:#1a1d23;outline:none;transition:border-color .2s;font-family:'Inter',sans-serif;}
+.login-field input:focus{border-color:#2563eb;background:#fff;}
+.login-err{font-size:12px;color:#dc2626;margin-bottom:12px;display:none;text-align:center;font-weight:500;}
+.btn-login{width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;margin-top:4px;}
+.btn-login:hover{background:#1d4ed8;}
+.btn-login:disabled{opacity:.6;cursor:not-allowed;}
 </style>
 </head>
 <body>
@@ -164,13 +177,31 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
   <div class="revoked-sub" id="revoked-name"></div>
 </div>
 
-<div id="main-app">
+
+<div class="login-screen show" id="login-screen">
+  <div class="login-box">
+    <h1>Vendor Contact Tracker</h1>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="login-username" placeholder="Enter username..." onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()" autocomplete="off">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Enter password..." onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-err" id="login-err">Invalid username or password.</div>
+    <button class="btn-login" id="login-btn" onclick="doLogin()">Login</button>
+  </div>
+</div>
+
+<div id="main-app" style="display:none;">
   <div class="header">
     <div class="header-left"><div class="logo-dot"></div><h1>Vendor Contact Tracker</h1></div>
     <div class="header-right">
       <span class="sync-status sync-loading" id="sync-status">Connecting...</span>
       <span class="candidate-badge" id="header-name">Loading...</span>
       <button class="btn-manager" id="manager-btn" onclick="openManagerModal()">⚙ Manager</button>
+      <button class="btn-manager" onclick="logout()" style="color:#dc2626;border-color:#fecaca;">Logout</button>
     </div>
   </div>
 
@@ -309,12 +340,13 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
       <button class="btn-cancel" onclick="closeManagerPanel()" style="padding:4px 10px;">✕</button>
     </div>
     <div class="manager-tabs">
-      <div class="m-tab active" onclick="switchTab('candidates')" id="tab-candidates">Candidates</div>
+      
       <div class="m-tab" onclick="switchTab('emails')" id="tab-emails">Email Alerts</div>
       <div class="m-tab" onclick="switchTab('export')" id="tab-export">Export CSV</div>
       <div class="m-tab" onclick="switchTab('password')" id="tab-password">🔑 Password</div>
+      <div class="m-tab active" onclick="switchTab('logins')" id="tab-logins">👥 Logins</div>
     </div>
-    <div id="panel-candidates">
+    <div id="panel-candidates" style="display:none;">
       <div class="cand-count-bar">
         <span class="cand-count" id="cand-count">0 candidates</span>
         <span style="font-size:11px;color:#94a3b8;">Only listed names can log entries</span>
@@ -361,6 +393,33 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
         <button class="btn-add" onclick="exportCSV()" style="width:100%;justify-content:center;"><i class="ti ti-download"></i> Download CSV</button>
       </div>
     </div>
+    
+<div id="panel-logins">
+  <div class="cand-count-bar">
+    <span class="cand-count" id="login-count">0 logins</span>
+    <span style="font-size:11px;color:#94a3b8;">Manage candidate login credentials</span>
+  </div>
+  <div class="cand-list" id="login-list"></div>
+  <div style="background:#f8fafc;border:1px solid #e2e6ea;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+    <p style="font-size:12px;color:#64748b;font-weight:500;">Add New Login</p>
+    <div class="form-group">
+      <label>Candidate Full Name</label>
+      <input type="text" id="new-login-name" placeholder="FULL NAME (as it appears in tracker)" style="background:#fff;border:1px solid #e2e6ea;border-radius:6px;padding:8px 12px;font-size:13px;outline:none;width:100%;text-transform:uppercase;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="new-login-username" placeholder="e.g. john.smith" style="background:#fff;border:1px solid #e2e6ea;border-radius:6px;padding:8px 12px;font-size:13px;outline:none;width:100%;">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="text" id="new-login-password" placeholder="e.g. Arc@1234" style="background:#fff;border:1px solid #e2e6ea;border-radius:6px;padding:8px 12px;font-size:13px;outline:none;width:100%;">
+      </div>
+    </div>
+    <button class="btn-confirm" onclick="addLogin()" style="width:100%;">+ Add Login</button>
+  </div>
+</div>
+
     <div id="panel-password" style="display:none;">
       <p style="font-size:13px;color:#64748b;margin-bottom:16px;">Change the manager password.</p>
       <div class="pw-section">
@@ -452,20 +511,9 @@ async function refreshData(){
 
 async function init(){
   populateDL('f-dl');populateDL('e-dl');
-  showLoading('Connecting to Google Sheets...');
-  const urlName=getUrlParam('candidate');
-  const savedName=localStorage.getItem('vct_candidate_name');
-  if(urlName){candidateName=decodeURIComponent(urlName).toUpperCase();localStorage.setItem('vct_candidate_name',candidateName);}
-  else if(savedName){candidateName=savedName;}
-  else{document.getElementById('name-setup').style.display='block';}
-  try{
-    entries=rowsToEntries(await fetchFromSheet());
-    setSyncStatus('ok','✓ Live');hideLoading();
-    if(candidateName&&candidates.length>0&&!isAllowed(candidateName)){showRevoked(candidateName);return;}
-    updateHeaderName();
-    if(candidateName){document.getElementById('f-candidate').value=candidateName;document.getElementById('candidate-export-btn').style.display='flex';}
-    renderTable();updateStats();
-  }catch(e){setSyncStatus('err','✗ Offline');hideLoading();document.getElementById('empty-msg').textContent='Could not connect to Google Sheets.';document.getElementById('empty-state').style.display='block';}
+  // Always show login screen on load
+  document.getElementById('login-screen').classList.add('show');
+  document.getElementById('main-app').style.display='none';
 }
 
 function setName(){
@@ -613,7 +661,7 @@ function updateStats(){
 function confirmDelete(id){if(confirm('Delete this entry?')){entries=entries.filter(e=>e.id!==String(id));renderTable();updateStats();showToast('Entry removed');}}
 
 function openManagerModal(){
-  if(isManager){document.getElementById('manager-panel').style.display='flex';renderCandidateList();renderEmailChips();populateExportFilter();updatePWDisplay();return;}
+  if(isManager){document.getElementById('manager-panel').style.display='flex';renderLoginList();renderEmailChips();populateExportFilter();updatePWDisplay();renderLoginList();return;}
   document.getElementById('manager-modal').style.display='flex';
   document.getElementById('pw-input').value='';document.getElementById('pw-error').style.display='none';
   setTimeout(()=>document.getElementById('pw-input').focus(),100);
@@ -632,7 +680,7 @@ async function checkPassword(){
     showLoading('Loading all data...');await refreshData();hideLoading();
     populateCandidateFilter();updateHeaderName();showToast('✓ Manager view unlocked');
     document.getElementById('manager-panel').style.display='flex';
-    renderCandidateList();renderEmailChips();populateExportFilter();updatePWDisplay();
+    renderLoginList();renderEmailChips();populateExportFilter();updatePWDisplay();
   }else{
     document.getElementById('pw-error').style.display='block';document.getElementById('pw-input').value='';document.getElementById('pw-input').focus();
   }
@@ -650,6 +698,95 @@ function populateCandidateFilter(){
 }
 
 function saveCandidates(){localStorage.setItem('vct_candidates_v10',JSON.stringify(candidates));}
+
+function renderLoginList(){
+  document.getElementById('login-count').textContent = credentials.length + ' login' + (credentials.length!==1?'s':'');
+  const list = document.getElementById('login-list');
+  if(!credentials.length){list.innerHTML='<p style="font-size:13px;color:#94a3b8;text-align:center;padding:12px;">No logins added yet.</p>';return;}
+  list.innerHTML = credentials.map((c,i) => `
+    <div class="cand-item" id="login-item-${i}">
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
+        <span class="cand-name">${c.candidateName}</span>
+        <span style="font-size:11px;color:#94a3b8;font-family:JetBrains Mono,monospace;" id="login-meta-${i}">@${c.username} · ${'•'.repeat(c.password.length)}</span>
+        <div id="login-edit-form-${i}" style="display:none;margin-top:8px;display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <input type="text" id="edit-uname-${i}" value="${c.username}" placeholder="Username" style="background:#f8fafc;border:1px solid #e2e6ea;border-radius:6px;padding:6px 10px;font-size:12px;color:#1a1d23;outline:none;width:100%;">
+            <input type="text" id="edit-pass-${i}" value="${c.password}" placeholder="Password" style="background:#f8fafc;border:1px solid #e2e6ea;border-radius:6px;padding:6px 10px;font-size:12px;color:#1a1d23;outline:none;width:100%;">
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="saveLoginEdit(${i})" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;">Save</button>
+            <button onclick="cancelLoginEdit(${i})" style="background:#fff;color:#64748b;border:1px solid #e2e6ea;border-radius:4px;padding:5px 12px;font-size:11px;cursor:pointer;">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-start;">
+        <button onclick="toggleLoginEdit(${i})" style="background:transparent;border:1px solid #bfdbfe;border-radius:4px;padding:3px 8px;font-size:11px;color:#2563eb;cursor:pointer;font-weight:500;" id="edit-btn-${i}">✏️ Edit</button>
+        <button class="btn-remove-cand" onclick="removeLogin(${i})">✕ Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+function toggleLoginEdit(i){
+  const form = document.getElementById('login-edit-form-'+i);
+  const btn = document.getElementById('edit-btn-'+i);
+  const isHidden = form.style.display === 'none' || !form.style.display;
+  form.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? '✕ Cancel' : '✏️ Edit';
+}
+
+function cancelLoginEdit(i){
+  document.getElementById('login-edit-form-'+i).style.display='none';
+  document.getElementById('edit-btn-'+i).textContent='✏️ Edit';
+}
+
+function saveLoginEdit(i){
+  const newUsername = document.getElementById('edit-uname-'+i).value.trim().toLowerCase();
+  const newPassword = document.getElementById('edit-pass-'+i).value.trim();
+  if(!newUsername||!newPassword){showToast('Username and password required',true);return;}
+  if(credentials.some((c,idx)=>idx!==i&&c.username.toLowerCase()===newUsername)){showToast('Username already exists',true);return;}
+  credentials[i].username = newUsername;
+  credentials[i].password = newPassword;
+  saveCredentials();
+  renderLoginList();
+  renderCandidateList();
+  showToast('✓ Login updated for '+credentials[i].candidateName);
+}
+
+function addLogin(){
+  const name = document.getElementById('new-login-name').value.trim().toUpperCase();
+  const username = document.getElementById('new-login-username').value.trim().toLowerCase();
+  const password = document.getElementById('new-login-password').value.trim();
+  if(!name||!username||!password){showToast('All fields required',true);return;}
+  if(credentials.some(c=>c.username.toLowerCase()===username)){showToast('Username already exists',true);return;}
+  credentials.push({candidateName:name, username, password});
+  saveCredentials();
+  // Auto-add to candidates list if not already there
+  if(!candidates.some(c=>c.toUpperCase()===name)){
+    candidates.push(name);
+    saveCandidates();
+  }
+  document.getElementById('new-login-name').value='';
+  document.getElementById('new-login-username').value='';
+  document.getElementById('new-login-password').value='';
+  renderLoginList();
+  renderCandidateList();
+  showToast('✓ Login added for '+name);
+}
+
+function removeLogin(i){
+  const name = credentials[i].candidateName;
+  if(confirm(`Remove login for "${name}"?\n\nThey will not be able to login anymore.`)){
+    credentials.splice(i,1);
+    saveCredentials();
+    // Also remove from candidates list
+    const idx = candidates.findIndex(c=>c.toUpperCase()===name.toUpperCase());
+    if(idx>-1){candidates.splice(idx,1);saveCandidates();}
+    renderLoginList();
+    renderCandidateList();
+    showToast('Login removed for '+name);
+  }
+}
+
 function renderCandidateList(){
   document.getElementById('cand-count').textContent=`${candidates.length} candidate${candidates.length!==1?'s':''}`;
   const list=document.getElementById('cand-list');
@@ -728,7 +865,7 @@ function exportCSV(){
 }
 
 function switchTab(tab){
-  ['candidates','emails','export','password'].forEach(t=>{
+  ['emails','export','password','logins'].forEach(t=>{
     document.getElementById('panel-'+t).style.display=t===tab?'block':'none';
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
   });
@@ -746,6 +883,89 @@ function exportMyCsv(){
   const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=candidateName+'_contacts_'+toYMD(new Date())+'.csv';
   document.body.appendChild(a);a.click();document.body.removeChild(a);showToast('✓ Your data downloaded!');
+}
+
+
+// ============ LOGIN SYSTEM ============
+// Credentials stored in manager panel
+// Format: {username: 'name', password: 'pass', candidateName: 'FULL NAME'}
+let credentials = JSON.parse(localStorage.getItem('vct_credentials_v1') || '[]');
+let loggedInUser = null;
+
+function saveCredentials(){localStorage.setItem('vct_credentials_v1', JSON.stringify(credentials));}
+
+function doLogin(){
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+
+  if(!username || !password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
+
+  // Check manager login
+  if(username === 'manager' && password === managerPW){
+    document.getElementById('login-screen').classList.remove('show');
+    document.getElementById('main-app').style.display='block';
+    isManager = true;
+    document.getElementById('manager-banner').style.display='flex';
+    document.getElementById('form-section').style.display='none';
+    document.getElementById('manager-btn').classList.add('active');
+    document.getElementById('th-candidate').style.display='';
+    document.getElementById('filter-candidate').style.display='';
+    showLoading('Loading all data...');
+    fetchFromSheet().then(rows=>{
+      entries=rowsToEntries(rows);
+      setSyncStatus('ok','✓ Live');
+      hideLoading();
+      populateCandidateFilter();
+      updateHeaderName();
+      renderTable();updateStats();
+    }).catch(()=>{setSyncStatus('err','✗ Offline');hideLoading();});
+    return;
+  }
+
+  // Check candidate credentials
+  const user = credentials.find(c => c.username.toLowerCase() === username && c.password === password);
+  if(user){
+    loggedInUser = user;
+    candidateName = user.candidateName.toUpperCase();
+    localStorage.setItem('vct_candidate_name', candidateName);
+    document.getElementById('login-screen').classList.remove('show');
+    document.getElementById('main-app').style.display='block';
+    document.getElementById('name-setup').style.display='none';
+    document.getElementById('f-candidate').value = candidateName;
+    document.getElementById('candidate-export-btn').style.display='flex';
+    updateHeaderName();
+    showLoading('Loading your data...');
+    fetchFromSheet().then(rows=>{
+      entries=rowsToEntries(rows);
+      setSyncStatus('ok','✓ Live');
+      hideLoading();
+      renderTable();updateStats();
+    }).catch(()=>{setSyncStatus('err','✗ Offline');hideLoading();});
+    return;
+  }
+
+  errEl.textContent='Invalid username or password.';
+  errEl.style.display='block';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-password').focus();
+}
+
+function logout(){
+  loggedInUser=null;candidateName='';isManager=false;
+  localStorage.removeItem('vct_candidate_name');
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').classList.add('show');
+  document.getElementById('login-username').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-err').style.display='none';
+  document.getElementById('manager-banner').style.display='none';
+  document.getElementById('form-section').style.display='block';
+  document.getElementById('manager-btn').classList.remove('active');
+  document.getElementById('th-candidate').style.display='none';
+  document.getElementById('filter-candidate').style.display='none';
+  entries=[];renderTable();updateStats();
 }
 
 function showToast(msg,err){
