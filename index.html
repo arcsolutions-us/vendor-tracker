@@ -899,28 +899,27 @@ function cancelLoginEdit(i){
   document.getElementById('edit-btn-'+i).textContent='✏️ Edit';
 }
 
-function saveLoginEdit(i){
+async function saveLoginEdit(i){
   const newUsername = document.getElementById('edit-uname-'+i).value.trim().toLowerCase();
   const newPassword = document.getElementById('edit-pass-'+i).value.trim();
   if(!newUsername||!newPassword){showToast('Username and password required',true);return;}
   if(credentials.some((c,idx)=>idx!==i&&c.username.toLowerCase()===newUsername)){showToast('Username already exists',true);return;}
   credentials[i].username = newUsername;
   credentials[i].password = newPassword;
-  saveCredentials();
+  await saveCredentialsToSheet();
   renderLoginList();
   renderCandidateList();
   showToast('✓ Login updated for '+credentials[i].candidateName);
 }
 
-function addLogin(){
+async function addLogin(){
   const name = document.getElementById('new-login-name').value.trim().toUpperCase();
   const username = document.getElementById('new-login-username').value.trim().toLowerCase();
   const password = document.getElementById('new-login-password').value.trim();
   if(!name||!username||!password){showToast('All fields required',true);return;}
   if(credentials.some(c=>c.username.toLowerCase()===username)){showToast('Username already exists',true);return;}
   credentials.push({candidateName:name, username, password});
-  saveCredentials();
-  // Auto-add to candidates list if not already there
+  await saveCredentialsToSheet();
   if(!candidates.some(c=>c.toUpperCase()===name)){
     candidates.push(name);
     saveCandidates();
@@ -933,12 +932,11 @@ function addLogin(){
   showToast('✓ Login added for '+name);
 }
 
-function removeLogin(i){
+async function removeLogin(i){
   const name = credentials[i].candidateName;
   if(confirm(`Remove login for "${name}"?\n\nThey will not be able to login anymore.`)){
     credentials.splice(i,1);
-    saveCredentials();
-    // Also remove from candidates list
+    await saveCredentialsToSheet();
     const idx = candidates.findIndex(c=>c.toUpperCase()===name.toUpperCase());
     if(idx>-1){candidates.splice(idx,1);saveCandidates();}
     renderLoginList();
@@ -1049,21 +1047,53 @@ function exportMyCsv(){
 // ============ LOGIN SYSTEM ============
 // Credentials stored in manager panel
 // Format: {username: 'name', password: 'pass', candidateName: 'FULL NAME'}
-let credentials = JSON.parse(localStorage.getItem('vct_credentials_v1') || '[]');
+let credentials = []; // Loaded from Google Sheets
+
+async function loadCredentialsFromSheet(){
+  try{
+    const res = await fetch(SHEET_URL + '?action=getCredentials&t=' + Date.now());
+    const data = await res.json();
+    if(data.credentials){
+      credentials = data.credentials;
+    }
+  }catch(e){
+    // Fallback to localStorage if offline
+    credentials = JSON.parse(localStorage.getItem('vct_credentials_v1') || '[]');
+  }
+}
+
+function saveCredentials(){
+  // Save to localStorage as backup
+  localStorage.setItem('vct_credentials_v1', JSON.stringify(credentials));
+}
+
+async function saveCredentialsToSheet(){
+  try{
+    await postToSheet({action:'saveCredentials', credentials: credentials});
+    saveCredentials(); // also save locally as backup
+  }catch(e){
+    saveCredentials(); // save locally if offline
+    showToast('Saved locally — will sync when online',true);
+  }
+}
 let loggedInUser = null;
 
 function saveCredentials(){localStorage.setItem('vct_credentials_v1', JSON.stringify(credentials));}
 
-function doLogin(){
+async function doLogin(){
   const username = document.getElementById('login-username').value.trim().toLowerCase();
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-err');
+  const btn = document.getElementById('login-btn');
   errEl.style.display = 'none';
 
   if(!username || !password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
 
-  // Check manager login
+  btn.disabled=true;btn.textContent='Checking...';
+
+  // Check manager login first (local)
   if(username === 'manager' && password === managerPW){
+    btn.disabled=false;btn.textContent='Login';
     document.getElementById('login-screen').classList.remove('show');
     document.getElementById('main-app').style.display='block';
     document.getElementById('app-nav').style.display='flex';
@@ -1074,44 +1104,56 @@ function doLogin(){
     document.getElementById('th-candidate').style.display='';
     document.getElementById('filter-candidate').style.display='';
     showLoading('Loading all data...');
-    fetchFromSheet().then(rows=>{
+    try{
+      const rows = await fetchFromSheet();
       entries=rowsToEntries(rows);
+      // Also load credentials from sheet
+      await loadCredentialsFromSheet();
       setSyncStatus('ok','✓ Live');
       hideLoading();
       populateCandidateFilter();
       updateHeaderName();
       renderTable();updateStats();
-    }).catch(()=>{setSyncStatus('err','✗ Offline');hideLoading();});
+    }catch(e){setSyncStatus('err','✗ Offline');hideLoading();}
     return;
   }
 
-  // Check candidate credentials
-  const user = credentials.find(c => c.username.toLowerCase() === username && c.password === password);
-  if(user){
-    loggedInUser = user;
-    candidateName = user.candidateName.toUpperCase();
-    localStorage.setItem('vct_candidate_name', candidateName);
-    document.getElementById('login-screen').classList.remove('show');
-    document.getElementById('main-app').style.display='block';
-    document.getElementById('app-nav').style.display='flex';
-    document.getElementById('name-setup').style.display='none';
-    document.getElementById('f-candidate').value = candidateName;
-    document.getElementById('candidate-export-btn').style.display='flex';
-    updateHeaderName();
-    showLoading('Loading your data...');
-    fetchFromSheet().then(rows=>{
-      entries=rowsToEntries(rows);
-      setSyncStatus('ok','✓ Live');
-      hideLoading();
-      renderTable();updateStats();
-    }).catch(()=>{setSyncStatus('err','✗ Offline');hideLoading();});
-    return;
+  // Check credentials from Google Sheets
+  try{
+    await loadCredentialsFromSheet();
+    const user = credentials.find(c => c.username.toLowerCase() === username && c.password === password);
+    if(user){
+      loggedInUser = user;
+      candidateName = user.candidateName.toUpperCase();
+      localStorage.setItem('vct_candidate_name', candidateName);
+      btn.disabled=false;btn.textContent='Login';
+      document.getElementById('login-screen').classList.remove('show');
+      document.getElementById('main-app').style.display='block';
+      document.getElementById('app-nav').style.display='flex';
+      document.getElementById('name-setup').style.display='none';
+      document.getElementById('f-candidate').value = candidateName;
+      document.getElementById('candidate-export-btn').style.display='flex';
+      updateHeaderName();
+      showLoading('Loading your data...');
+      try{
+        const rows = await fetchFromSheet();
+        entries=rowsToEntries(rows);
+        setSyncStatus('ok','✓ Live');
+        hideLoading();
+        renderTable();updateStats();
+      }catch(e){setSyncStatus('err','✗ Offline');hideLoading();}
+      return;
+    }
+    btn.disabled=false;btn.textContent='Login';
+    errEl.textContent='Invalid username or password.';
+    errEl.style.display='block';
+    document.getElementById('login-password').value='';
+    document.getElementById('login-password').focus();
+  }catch(e){
+    btn.disabled=false;btn.textContent='Login';
+    errEl.textContent='Could not connect. Please try again.';
+    errEl.style.display='block';
   }
-
-  errEl.textContent='Invalid username or password.';
-  errEl.style.display='block';
-  document.getElementById('login-password').value='';
-  document.getElementById('login-password').focus();
 }
 
 function logout(){
@@ -1250,7 +1292,28 @@ function openBookingModal(date, time, room){
   document.getElementById('sch-book-name').value = candidateName || '';
   document.getElementById('sch-book-email').value = '';
   document.getElementById('sch-book-err').style.display='none';
+  
+  // Check available slots from this time
+  const timeIdx = SCH_TIMES.indexOf(time);
+  const slotsLeft = SCH_TIMES.length - timeIdx;
+  
+  // Enable/disable duration buttons based on available slots
+  const dur30 = document.getElementById('dur-30');
+  const dur60 = document.getElementById('dur-60');
+  const dur90 = document.getElementById('dur-90');
+  
+  dur30.disabled = slotsLeft < 1;
+  dur60.disabled = slotsLeft < 2;
+  dur90.disabled = slotsLeft < 3;
+  
+  dur30.style.opacity = slotsLeft < 1 ? '0.4' : '1';
+  dur60.style.opacity = slotsLeft < 2 ? '0.4' : '1';
+  dur90.style.opacity = slotsLeft < 3 ? '0.4' : '1';
+  
+  // Auto-select 30 min, or first available
+  schSelectedDuration = 30;
   ['30','60','90'].forEach(d=>{document.getElementById('dur-'+d).classList.toggle('active',d==='30');});
+  
   document.getElementById('sch-booking-modal').style.display='flex';
   setTimeout(()=>document.getElementById('sch-book-name').focus(),100);
 }
