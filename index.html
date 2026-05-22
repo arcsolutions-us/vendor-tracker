@@ -173,8 +173,7 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
 .nav-tab.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:600;}
 
 /* SCHEDULER */
-.scheduler-wrap{padding:24px;display:none;}
-.scheduler-wrap.show{display:block;}
+.scheduler-wrap{padding:24px;}
 .sch-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
 .sch-header h2{font-size:18px;font-weight:700;color:#1a1d23;}
 .sch-header p{font-size:13px;color:#64748b;margin-top:2px;}
@@ -1245,6 +1244,8 @@ function switchAppTab(tab){
 
   // Show/hide scheduler
   document.getElementById('scheduler-section').style.display = tab==='scheduler'?'block':'none';
+  if(tab==='scheduler') document.getElementById('scheduler-section').style.setProperty('display','block','important');
+  if(tab==='tracker') document.getElementById('scheduler-section').style.setProperty('display','none','important');
 
   if(tab==='scheduler') renderScheduler();
 }
