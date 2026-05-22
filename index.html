@@ -679,7 +679,7 @@ async function init(){
 function setName(){
   const val=document.getElementById('name-input').value.trim();
   if(!val){showToast('Please enter your name',true);return;}
-  if(candidates.length>0&&!isAllowed(val)){showRevoked(val);return;}
+  // Access controlled by login system
   candidateName=val.toUpperCase();localStorage.setItem('vct_candidate_name',candidateName);
   document.getElementById('name-setup').style.display='none';
   document.getElementById('f-candidate').value=candidateName;
@@ -703,7 +703,7 @@ function clearForm(){
 
 async function addEntry(){
   if(!candidateName){showToast('Please set your name first',true);return;}
-  if(!isManager&&candidates.length>0&&!isAllowed(candidateName)){showRevoked(candidateName);return;}
+  // Access controlled by login system
   const get=id=>document.getElementById(id).value.trim();
   if(!get('f-client')&&!get('f-vendor')){showToast('At least Client or Vendor Name is required',true);return;}
   const entry={action:'add',id:String(Date.now()),candidate:candidateName,date:get('f-date')||toYMD(new Date()),vendor:get('f-vendor'),phone:get('f-phone'),vendorEmail:get('f-vendor-email'),vendorCompany:get('f-vendor-company'),implPartner:get('f-impl-partner'),client:get('f-client'),position:get('f-position'),location:get('f-location'),dl:document.getElementById('f-dl').value,india:get('f-india'),mylocation:get('f-mylocation'),update:document.getElementById('f-update').value,comments:get('f-comments')};
