@@ -458,18 +458,15 @@ tbody td{padding:10px 12px;color:#374151;vertical-align:middle;}
       <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;font-weight:500;margin-bottom:6px;">Duration</div>
       <div class="sch-duration-btns">
         <button class="sch-dur-btn active" onclick="setDuration(30)" id="dur-30">30 min</button>
+        <button class="sch-dur-btn" onclick="setDuration(45)" id="dur-45">45 min</button>
         <button class="sch-dur-btn" onclick="setDuration(60)" id="dur-60">1 hour</button>
-        <button class="sch-dur-btn" onclick="setDuration(90)" id="dur-90">1.5 hours</button>
       </div>
     </div>
     <div class="sch-field">
       <label>Name <span style="color:#dc2626;">*</span></label>
       <input type="text" id="sch-book-name" placeholder="Your full name..." />
     </div>
-    <div class="sch-field">
-      <label>Email <span style="color:#94a3b8;font-size:10px;">(optional)</span></label>
-      <input type="email" id="sch-book-email" placeholder="your@email.com" />
-    </div>
+
     <div class="error-msg" id="sch-book-err"></div>
     <button class="sch-book-btn" onclick="confirmBooking()">Request Booking</button>
     <button class="btn-secondary" onclick="closeBookingModal()" style="width:100%;margin-top:8px;text-align:center;">Cancel</button>
@@ -824,11 +821,18 @@ async function confirmDelete(id){
   if(confirm('Delete this entry? This will permanently remove it from Google Sheets.')){
     setSyncStatus('loading','Deleting...');
     try{
-      await postToSheet({action:'deleteRow', id:String(id)});
-      entries=entries.filter(e=>e.id!==String(id));
-      setSyncStatus('ok','✓ Live');
-      renderTable();updateStats();
-      showToast('✓ Entry deleted from Google Sheets');
+      const result = await postToSheet({action:'deleteRow', id:String(id)});
+      if(result.status==='ok'){
+        entries=entries.filter(e=>e.id!==String(id));
+        setSyncStatus('ok','✓ Live');
+        renderTable();updateStats();
+        showToast('✓ Entry deleted from Google Sheets');
+        // Refresh to confirm deletion
+        await refreshData();
+      } else {
+        showToast('Delete failed — row not found',true);
+        setSyncStatus('err','✗ Failed');
+      }
     }catch(e){
       setSyncStatus('err','✗ Failed');
       showToast('Delete failed — try again',true);
@@ -1197,7 +1201,7 @@ let schSelectedSlot = null;
 let schSelectedDuration = 30;
 
 const SCH_TIMES = [];
-for(let h=8;h<18;h++){SCH_TIMES.push(`${String(h).padStart(2,'0')}:00`);SCH_TIMES.push(`${String(h).padStart(2,'0')}:30`);}
+for(let h=8;h<20;h++){SCH_TIMES.push(`${String(h).padStart(2,'0')}:00`);SCH_TIMES.push(`${String(h).padStart(2,'0')}:30`);}
 
 function saveSchBookings(){localStorage.setItem('vct_sch_bookings', JSON.stringify(schBookings));}
 
@@ -1297,7 +1301,7 @@ function renderSlot(dateKey, time, room, status){
     return `<button class="sch-slot available" onclick="openBookingModal('${dateKey}','${time}','${room}')">Available</button>`;
   }
   const booking = schBookings.find(b=>b.date===dateKey&&b.time===time&&b.room===room);
-  const label = status==='pending'?'Pending':(booking?booking.name:'Booked');
+  const label = status==='pending'?`${booking?booking.name:'Pending'}`:(booking?`${booking.name}${booking.round?' · '+booking.round:''}`:'Booked');
   return `<button class="sch-slot ${status==='pending'?'pending':'booked'}" disabled>${label}</button>`;
 }
 
@@ -1306,7 +1310,10 @@ function openBookingModal(date, time, room){
   schSelectedDuration = 30;
   document.getElementById('sch-modal-info').textContent = `${room} · ${time} · ${date}`;
   document.getElementById('sch-book-name').value = candidateName || '';
-  document.getElementById('sch-book-email').value = '';
+  document.getElementById('sch-book-name').readOnly = true;
+  document.getElementById('sch-book-name').style.background = '#eff6ff';
+  document.getElementById('sch-book-name').style.color = '#2563eb';
+  document.getElementById('sch-book-round').value = '';
   document.getElementById('sch-book-err').style.display='none';
   
   // Check available slots from this time
@@ -1316,19 +1323,20 @@ function openBookingModal(date, time, room){
   // Enable/disable duration buttons based on available slots
   const dur30 = document.getElementById('dur-30');
   const dur60 = document.getElementById('dur-60');
-  const dur90 = document.getElementById('dur-90');
   
+  
+  const dur45 = document.getElementById('dur-45');
   dur30.disabled = slotsLeft < 1;
+  dur45.disabled = slotsLeft < 2;
   dur60.disabled = slotsLeft < 2;
-  dur90.disabled = slotsLeft < 3;
   
   dur30.style.opacity = slotsLeft < 1 ? '0.4' : '1';
+  dur45.style.opacity = slotsLeft < 2 ? '0.4' : '1';
   dur60.style.opacity = slotsLeft < 2 ? '0.4' : '1';
-  dur90.style.opacity = slotsLeft < 3 ? '0.4' : '1';
   
   // Auto-select 30 min, or first available
   schSelectedDuration = 30;
-  ['30','60','90'].forEach(d=>{document.getElementById('dur-'+d).classList.toggle('active',d==='30');});
+  ['30','45','60'].forEach(d=>{document.getElementById('dur-'+d).classList.toggle('active',d==='30');});
   
   document.getElementById('sch-booking-modal').style.display='flex';
   setTimeout(()=>document.getElementById('sch-book-name').focus(),100);
@@ -1338,18 +1346,37 @@ function closeBookingModal(){document.getElementById('sch-booking-modal').style.
 
 function setDuration(mins){
   schSelectedDuration=mins;
-  ['30','60','90'].forEach(d=>{document.getElementById('dur-'+d).classList.toggle('active',String(d)===String(mins));});
+  ['30','45','60'].forEach(d=>{document.getElementById('dur-'+d).classList.toggle('active',String(d)===String(mins));});
+}
+
+function toggleNameEdit(){
+  const input = document.getElementById('sch-book-name');
+  const btn = document.getElementById('sch-name-edit-btn');
+  if(input.readOnly){
+    input.readOnly = false;
+    input.style.background = '#fff';
+    input.style.color = '#1a1d23';
+    input.focus();
+    btn.textContent = '✓ Lock';
+    btn.style.color = '#2563eb';
+  } else {
+    input.readOnly = true;
+    input.style.background = '#eff6ff';
+    input.style.color = '#2563eb';
+    btn.textContent = '✏️ Edit';
+    btn.style.color = '#64748b';
+  }
 }
 
 function confirmBooking(){
   const name = document.getElementById('sch-book-name').value.trim();
-  const email = document.getElementById('sch-book-email').value.trim();
+  const email = '';
   const errEl = document.getElementById('sch-book-err');
   if(!name){errEl.textContent='Name is required.';errEl.style.display='block';return;}
   errEl.style.display='none';
 
   // Add booking slots based on duration
-  const slotsNeeded = schSelectedDuration / 30;
+  const slotsNeeded = schSelectedDuration === 45 ? 2 : schSelectedDuration / 30;
   const timeIdx = SCH_TIMES.indexOf(schSelectedSlot.time);
 
   // Check all slots available
@@ -1401,8 +1428,8 @@ function fmtSchTime(time){
 
 function fmtDuration(mins){
   if(mins===30) return '30 min';
+  if(mins===45) return '45 min';
   if(mins===60) return '1 hour';
-  if(mins===90) return '1.5 hours';
   return mins+' min';
 }
 
@@ -1432,8 +1459,9 @@ function renderManagerApprovals(){
           <div class="sch-pending-detail">
             <span>📅 ${fmtSchDate(b.date)}</span>
             <span>⏰ ${fmtSchTime(b.time)} (${fmtDuration(b.duration)})</span>
+            <span>🎯 ${b.round||'—'}</span>
             <span>🚪 ${b.room}</span>
-            ${b.email?`<span>📧 ${b.email}</span>`:''}
+            
           </div>
         </div>
         <div class="sch-pending-actions">
@@ -1462,10 +1490,11 @@ function renderManagerApprovals(){
         <tbody>
           ${confirmed.map(b=>`
             <tr>
-              <td class="td-name">${b.name}${b.email?`<br><span style="font-size:11px;color:#94a3b8;font-weight:400;">${b.email}</span>`:''}</td>
+              <td class="td-name">${b.name}</td>
               <td>${fmtSchDate(b.date)}</td>
               <td>${fmtSchTime(b.time)}</td>
               <td>${fmtDuration(b.duration)}</td>
+              <td><span class="sch-room-badge" style="background:#f5f3ff;color:#7c3aed;border-color:#ddd6fe;">${b.round||'—'}</span></td>
               <td><span class="sch-room-badge">${b.room}</span></td>
               <td><button class="btn-reject" onclick="cancelBooking(${b.id})" style="background:#fff7ed;color:#ea580c;border-color:#fed7aa;font-size:11px;padding:5px 10px;">✕ Cancel</button></td>
             </tr>`).join('')}
