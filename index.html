@@ -820,7 +820,21 @@ function updateStats(){
   document.getElementById('stat-thisweek').textContent=pool.filter(e=>{const d=getDateStr(e.date);return d&&new Date(d)>=weekAgo;}).length;
 }
 
-function confirmDelete(id){if(confirm('Delete this entry?')){entries=entries.filter(e=>e.id!==String(id));renderTable();updateStats();showToast('Entry removed');}}
+async function confirmDelete(id){
+  if(confirm('Delete this entry? This will permanently remove it from Google Sheets.')){
+    setSyncStatus('loading','Deleting...');
+    try{
+      await postToSheet({action:'deleteRow', id:String(id)});
+      entries=entries.filter(e=>e.id!==String(id));
+      setSyncStatus('ok','✓ Live');
+      renderTable();updateStats();
+      showToast('✓ Entry deleted from Google Sheets');
+    }catch(e){
+      setSyncStatus('err','✗ Failed');
+      showToast('Delete failed — try again',true);
+    }
+  }
+}
 
 function openManagerModal(){
   if(isManager){document.getElementById('manager-panel').style.display='flex';renderLoginList();renderEmailChips();populateExportFilter();updatePWDisplay();renderLoginList();return;}
