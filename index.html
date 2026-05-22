@@ -660,7 +660,7 @@ async function fetchFromSheet(){const res=await fetch(SHEET_URL+'?t='+Date.now()
 async function postToSheet(p){const res=await fetch(SHEET_URL,{method:'POST',body:JSON.stringify(p)});return await res.json();}
 function rowsToEntries(rows){
   if(!rows||rows.length<2)return[];
-  return rows.slice(1).map(r=>({id:String(r[0]||''),candidate:String(r[1]||''),date:String(r[2]||''),vendor:String(r[3]||''),phone:String(r[4]||''),vendorEmail:String(r[5]||''),vendorCompany:String(r[6]||''),implPartner:String(r[7]||''),client:String(r[8]||''),position:String(r[9]||''),location:String(r[10]||''),dl:String(r[11]||''),india:String(r[12]||''),mylocation:String(r[13]||''),update:String(r[14]||''),comments:String(r[15]||'')})).filter(e=>e.id&&(e.client||e.candidate||e.vendor));
+  return rows.slice(1).map(r=>({id:String(r[0]||''),candidate:String(r[1]||''),date:String(r[2]||''),vendor:String(r[3]||''),phone:String(r[4]||''),vendorEmail:String(r[5]||''),vendorCompany:String(r[6]||''),implPartner:String(r[7]||''),client:String(r[8]||''),position:String(r[9]||''),location:String(r[10]||''),dl:String(r[11]||''),india:String(r[12]||''),mylocation:String(r[13]||''),update:(()=>{const raw=String(r[14]||'').toUpperCase().trim();const match=(['Documents Sent','Submitted','Interview Scheduled','Interview Done','Awaiting Feedback','Rejected','On Hold','No Response'].find(s=>s.toUpperCase()===raw));return match||raw;})(),comments:String(r[15]||'')})).filter(e=>e.id&&(e.client||e.candidate||e.vendor));
 }
 
 async function refreshData(){
@@ -728,7 +728,9 @@ function openEditModal(id){
   document.getElementById('e-dl').value=e.dl||'';
   document.getElementById('e-india').value=e.india||'';
   document.getElementById('e-mylocation').value=e.mylocation||'';
-  document.getElementById('e-update').value=e.update||'';
+  // Match status case-insensitively
+const matchedStatus = STATUSES.find(s=>s.toUpperCase()===(e.update||'').toUpperCase()) || '';
+document.getElementById('e-update').value=matchedStatus;
   document.getElementById('e-comments').value=e.comments||'';
   document.getElementById('edit-modal').style.display='flex';
 }
@@ -799,7 +801,7 @@ const ms=!search||searchFields.some(k=>(e[k]||'').toLowerCase().includes(search)
     <td style="color:#64748b;">${e.mylocation||'—'}</td>
     <td><select class="status-select badge ${statusColors[e.update]||'badge-gray'}" onchange="updateStatus('${e.id}',this.value)">
       <option value="" ${!e.update?'selected':''}>—</option>
-      ${STATUSES.map(s=>`<option ${e.update===s?'selected':''} value="${s}">${s}</option>`).join('')}
+      ${STATUSES.map(s=>`<option ${(e.update||'').toUpperCase()===s.toUpperCase()?'selected':''} value="${s}">${s}</option>`).join('')}
     </select></td>
     <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:12px;" title="${e.comments||''}">${e.comments||'—'}</td>
     <td style="white-space:nowrap;">
