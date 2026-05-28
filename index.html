@@ -773,8 +773,15 @@ function switchAppTab(tab){
   const mgrBanner=document.getElementById('manager-banner');
   if(mgrBanner)mgrBanner.style.display=show&&isManager?'flex':'none';
   if(!show){
-    // Small timeout ensures DOM is visible before rendering
-    setTimeout(()=>renderScheduler(), 50);
+    setTimeout(()=>{
+      renderScheduler();
+      if(isManager){
+        const s=document.getElementById('sch-mgr-section');
+        s.style.display='block';
+        s.style.setProperty('display','block','important');
+        renderManagerApprovals();
+      }
+    }, 100);
   }
 }
 
