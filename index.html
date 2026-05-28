@@ -893,7 +893,8 @@ function renderTable(){
   });
   document.getElementById('row-count').textContent=filtered.length?`${filtered.length} result${filtered.length!==1?'s':''}`:' ';
   const tbody=document.getElementById('table-body');const empty=document.getElementById('empty-state');
-  if(!filtered.length){tbody.innerHTML='';document.getElementById('empty-msg').textContent=pool.length?'No entries match filters.':'No entries yet. Log your first vendor contact above.';empty.style.display='block';return;}
+  if(!filtered.length){updateStats();tbody.innerHTML='';document.getElementById('empty-msg').textContent=pool.length?'No entries match filters.':'No entries yet. Log your first vendor contact above.';empty.style.display='block';return;}
+  updateStats();
   empty.style.display='none';
   tbody.innerHTML=filtered.map(e=>`<tr>
     <td class="td-date">${formatDate(e.date)}</td>
@@ -947,9 +948,11 @@ function updateStats(){
   const sun=new Date(mon);sun.setDate(mon.getDate()+6);
   const monKey=toYMD(mon);const sunKey=toYMD(sun);
 
+  // All stats from filtered pool
   document.getElementById('stat-total').textContent=pool.length;
   document.getElementById('stat-interviews').textContent=pool.filter(e=>(e.update||'').toUpperCase().includes('INTERVIEW')).length;
   document.getElementById('stat-pending').textContent=pool.filter(e=>['SUBMITTED','AWAITING FEEDBACK','DOCUMENTS SENT','INTERVIEW SCHEDULED','INTERVIEW DONE'].includes((e.update||'').toUpperCase())).length;
+  // This week always counts from filtered pool within current week
   document.getElementById('stat-thisweek').textContent=pool.filter(e=>{const d=getDateStr(e.date);return d>=monKey&&d<=sunKey;}).length;
 }
 
