@@ -772,7 +772,10 @@ function switchAppTab(tab){
   document.getElementById('scheduler-section').style.display=show?'none':'block';
   const mgrBanner=document.getElementById('manager-banner');
   if(mgrBanner)mgrBanner.style.display=show&&isManager?'flex':'none';
-  if(!show)renderScheduler();
+  if(!show){
+    // Small timeout ensures DOM is visible before rendering
+    setTimeout(()=>renderScheduler(), 50);
+  }
 }
 
 // ===== FORM =====
@@ -1110,8 +1113,14 @@ function renderScheduler(){
     const r1=getSlotStatus(dateKey,time,'Room 1');const r2=getSlotStatus(dateKey,time,'Room 2');
     return`<tr><td>${fmtSchTime(time)}</td><td>${renderSlot(dateKey,time,'Room 1',r1)}</td><td>${renderSlot(dateKey,time,'Room 2',r2)}</td></tr>`;
   }).join('');
-  if(isManager){document.getElementById('sch-mgr-section').style.display='block';renderManagerApprovals();}
-  else{document.getElementById('sch-mgr-section').style.display='none';}
+  const mgrSection = document.getElementById('sch-mgr-section');
+  if(isManager){
+    mgrSection.style.display='block';
+    mgrSection.style.setProperty('display','block','important');
+    renderManagerApprovals();
+  } else {
+    mgrSection.style.display='none';
+  }
 }
 
 function getSlotStatus(dateKey,time,room){
