@@ -922,12 +922,30 @@ function renderTable(){
 }
 
 function updateStats(){
-  const weekAgo=new Date(Date.now()-7*24*60*60*1000);
-  const pool=isManager?entries:entries.filter(e=>(e.candidate||'').toLowerCase().trim()===(candidateName||'').toLowerCase().trim());
-  document.getElementById('stat-total').textContent=pool.length;
-  document.getElementById('stat-interviews').textContent=pool.filter(e=>(e.update||'').toUpperCase().includes('INTERVIEW')).length;
-  document.getElementById('stat-pending').textContent=pool.filter(e=>['SUBMITTED','AWAITING FEEDBACK','DOCUMENTS SENT','INTERVIEW SCHEDULED','INTERVIEW DONE'].includes((e.update||'').toUpperCase())).length;
-  document.getElementById('stat-thisweek').textContent=pool.filter(e=>{const d=getDateStr(e.date);return d&&new Date(d)>=weekAgo;}).length;
+  const weekAgo=new Date();weekAgo.setDate(weekAgo.getDate()-6);weekAgo.setHours(0,0,0,0);
+  const candidatePool=isManager?entries:entries.filter(e=>(e.candidate||'').toLowerCase().trim()===(candidateName||'').toLowerCase().trim());
+  
+  // Apply same date filters as table
+  const dateFrom=document.getElementById('filter-date-from').value;
+  const dateTo=document.getElementById('filter-date-to').value;
+  const pool=candidatePool.filter(e=>{
+    const eDate=getDateStr(e.date);
+    return(!dateFrom||eDate>=dateFrom)&&(!dateTo||eDate<=dateTo);
+  });
+
+  // Stats always from full candidate pool (unfiltered by date)
+  const fullPool=candidatePool;
+  document.getElementById('stat-total').textContent=fullPool.length;
+  document.getElementById('stat-interviews').textContent=fullPool.filter(e=>(e.update||'').toUpperCase().includes('INTERVIEW')).length;
+  document.getElementById('stat-pending').textContent=fullPool.filter(e=>['SUBMITTED','AWAITING FEEDBACK','DOCUMENTS SENT','INTERVIEW SCHEDULED','INTERVIEW DONE'].includes((e.update||'').toUpperCase())).length;
+  
+  // This week - always current week regardless of filter
+  const today=new Date();today.setHours(0,0,0,0);
+  const day=today.getDay();
+  const mon=new Date(today);mon.setDate(today.getDate()-(day===0?6:day-1));
+  const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+  const monKey=toYMD(mon);const sunKey=toYMD(sun);
+  document.getElementById('stat-thisweek').textContent=fullPool.filter(e=>{const d=getDateStr(e.date);return d>=monKey&&d<=sunKey;}).length;
 }
 
 function populateCandidateFilter(){
