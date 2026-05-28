@@ -1199,7 +1199,7 @@ function renderManagerApprovals(){
   const weekMon=new Date(todayD);weekMon.setDate(todayD.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
   const weekSun=new Date(weekMon);weekSun.setDate(weekMon.getDate()+6);
   const weekMonKey=schDateKey(weekMon);const weekSunKey=schDateKey(weekSun);
-  const confirmed=schBookings.filter(b=>b.status==='confirmed'&&b.isFirst&&b.date>=weekMonKey&&b.date<=weekSunKey);
+  const confirmed=schBookings.filter(b=>b.status==='confirmed'&&b.isFirst&&b.date>=weekMonKey&&b.date<=weekSunKey).sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:b.time>a.time?1:-1);
   document.getElementById('pending-count').textContent=`${pending.length} booking${pending.length!==1?'s':''} awaiting approval`;
   document.getElementById('confirmed-count').textContent=`${confirmed.length} confirmed interview${confirmed.length!==1?'s':''} this week`;
   const pendingList=document.getElementById('pending-list');
